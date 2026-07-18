@@ -19,10 +19,7 @@ services:
       # Local dev origin (localhost:3000) is always allowed in code.
       - key: CORS_ORIGINS
         sync: false
-    # Render sets PORT; our server reads it via os.Getenv("PORT").
-    # GEMINI_API_KEY is a secret — set it in the Render dashboard (not here).
-    envVarGroups: []
-    plan: free
+   
     # healthcheck + prebuilt start command.
     healthCheckPath: /health
     startCommand: ./refine-text
