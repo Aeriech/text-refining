@@ -1,0 +1,30 @@
+# render.yaml — Infrastructure-as-code for the Go backend.
+# Deploy: push this repo to GitHub, then in Render: New > Blueprint > connect repo.
+# Render will create the webservice defined below.
+
+services:
+  - type: web
+    name: refine-text-backend
+    runtime: go
+    # Build/run from the backend subfolder of the monorepo.
+    rootDir: backend
+    # Pin the Go toolchain (must be >= go.mod's go directive).
+    envVars:
+      - key: GO_VERSION
+        value: "1.23"
+      # Secret — set the real value in the Render dashboard (do NOT commit it).
+      - key: GEMINI_API_KEY
+        sync: false
+      # Comma-separated list of allowed browser origins (your Vercel URL).
+      # Local dev origin (localhost:3000) is always allowed in code.
+      - key: CORS_ORIGINS
+        sync: false
+    # Render sets PORT; our server reads it via os.Getenv("PORT").
+    # GEMINI_API_KEY is a secret — set it in the Render dashboard (not here).
+    envVarGroups: []
+    plan: free
+    # healthcheck + prebuilt start command.
+    healthCheckPath: /health
+    startCommand: ./refine-text
+    buildCommand: go build -o refine-text .
+    autoDeploy: true

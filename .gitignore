@@ -1,0 +1,15 @@
+# --- Go backend ---
+backend/refine-text
+*.exe
+.env
+.env.local
+
+# --- Next.js frontend ---
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+frontend/next-env.d.ts.bak
+
+# --- misc ---
+.DS_Store
+*.log
