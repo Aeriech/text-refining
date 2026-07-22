@@ -22,17 +22,6 @@ if (!GEMINI_API_KEY) {
   console.error("Missing GEMINI_API_KEY environment variable");
 }
 
-function isRateLimitError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  const lower = msg.toLowerCase();
-  return (
-    lower.includes("429") ||
-    lower.includes("rate limit") ||
-    lower.includes("quota") ||
-    lower.includes("resource has been exhausted")
-  );
-}
-
 function humanizeError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
   const idx = msg.indexOf(":");
@@ -171,36 +160,25 @@ async function* runStreamWithFallback(
         return;
       }
 
-      if (isRateLimitError(err)) {
+      yield {
+        type: "status",
+        message: `Model ${model} failed — switching… (${humanizeError(err)})`,
+      };
+
+      if (modelIdx === FREE_TIER_MODELS.length - 1) {
         yield {
-          type: "status",
-          message: `Model ${model} is rate-limited — switching… (${humanizeError(err)})`,
+          type: "error",
+          message: "All available AI models failed to process the request. Please try again.",
         };
-        if (modelIdx === FREE_TIER_MODELS.length - 1) {
-          yield {
-            type: "error",
-            message: "All available AI models are rate-limited right now. Please try again in a moment.",
-          };
-          yield { type: "completed" };
-          return;
-        }
-        continue;
+        yield { type: "completed" };
+        return;
       }
 
-      const errorMsg = `Generation failed: ${humanizeError(err)}`;
-      yield { type: "error", message: errorMsg };
-      yield { type: "completed" };
-      return;
+      continue;
     } finally {
       session = null;
     }
   }
-
-  yield {
-    type: "error",
-    message: "All available AI models are rate-limited right now. Please try again in a moment.",
-  };
-  yield { type: "completed" };
 }
 
 export async function POST(request: Request) {
