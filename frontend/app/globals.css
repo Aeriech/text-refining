@@ -1,13 +1,27 @@
-:root {
-  --bg: #0f1117;
-  --panel: #171a23;
-  --panel-2: #1e2230;
-  --border: #2a2f3e;
-  --text: #e6e8ef;
-  --muted: #9aa3b2;
-  --accent: #6d8bff;
-  --accent-2: #4ade80;
-  --danger: #f87171;
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0f1117;
+  --color-panel: #171a23;
+  --color-panel-2: #1e2230;
+  --color-border: #2a2f3e;
+  --color-text: #e6e8ef;
+  --color-muted: #9aa3b2;
+  --color-accent: #6d8bff;
+  --color-accent-2: #4ade80;
+  --color-danger: #f87171;
+  --color-danger-bg: rgba(248, 113, 113, 0.12);
+  --color-info-bg: rgba(109, 139, 255, 0.12);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --animate-caret: blink 1s steps(2, start) infinite;
+}
+
+@keyframes blink {
+  to {
+    visibility: hidden;
+  }
 }
 
 * {
@@ -18,184 +32,7 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-
-.container {
-  max-width: 880px;
-  margin: 0 auto;
-  padding: 48px 20px 80px;
-}
-
-.title {
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  margin: 0 0 6px;
-}
-
-.subtitle {
-  color: var(--muted);
-  margin: 0 0 28px;
-  font-size: 15px;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-@media (max-width: 720px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 18px;
-}
-
-.label {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-
-textarea {
-  width: 100%;
-  min-height: 160px;
-  resize: vertical;
-  background: var(--panel-2);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
-  font-size: 15px;
-  line-height: 1.5;
-  outline: none;
-}
-
-textarea:focus {
-  border-color: var(--accent);
-}
-
-.slider-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.slider-val {
-  font-variant-numeric: tabular-nums;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: 13px;
-  min-width: 34px;
-  text-align: center;
-}
-
-input[type="range"] {
-  width: 100%;
-  accent-color: var(--accent);
-}
-
-.actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 18px;
-  align-items: center;
-}
-
-button {
-  font: inherit;
-  cursor: pointer;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  padding: 10px 16px;
-  font-weight: 600;
-  transition: opacity 0.15s ease, background 0.15s ease;
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: var(--accent);
-  color: #0b1020;
-}
-
-.btn-secondary {
-  background: var(--panel-2);
-  color: var(--text);
-  border-color: var(--border);
-}
-
-.output {
-  white-space: pre-wrap;
-  word-break: break-word;
-  min-height: 160px;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
-  font-size: 15px;
-  line-height: 1.6;
-}
-
-.placeholder {
-  color: var(--muted);
-}
-
-.caret {
-  display: inline-block;
-  width: 8px;
-  height: 1.1em;
-  background: var(--accent);
-  margin-left: 2px;
-  vertical-align: text-bottom;
-  animation: blink 1s steps(2, start) infinite;
-}
-
-@keyframes blink {
-  to {
-    visibility: hidden;
-  }
-}
-
-.banner {
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 14px;
-  margin-top: 12px;
-}
-
-.banner-error {
-  background: rgba(248, 113, 113, 0.12);
-  border: 1px solid rgba(248, 113, 113, 0.4);
-  color: var(--danger);
-}
-
-.banner-info {
-  background: rgba(109, 139, 255, 0.12);
-  border: 1px solid rgba(109, 139, 255, 0.4);
-  color: var(--accent);
-}
-
-.meta {
-  color: var(--muted);
-  font-size: 12px;
-  margin-top: 10px;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
 }

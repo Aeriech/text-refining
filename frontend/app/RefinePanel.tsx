@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { streamSSE, type SSEEvent } from "@/lib/sseClient";
+import { type SSEEvent, streamSSE } from "@/lib/sseClient";
 import { useClipboard } from "@/lib/useClipboard";
+import InputPanel from "./components/InputPanel";
+import OutputPanel from "./components/OutputPanel";
 
 const API_URL = "/api/draft";
 
@@ -24,8 +26,6 @@ export default function RefinePanel() {
 
   const { copied, copy } = useClipboard();
   const abortRef = useRef<AbortController | null>(null);
-
-  const canSubmit = text.trim().length > 0 && !streaming;
 
   const handleEvent = useCallback((ev: SSEEvent) => {
     switch (ev.type) {
@@ -57,19 +57,14 @@ export default function RefinePanel() {
     abortRef.current = controller;
 
     try {
-      await streamSSE(
-        API_URL,
-        { text, formality: scores.formality, friendliness: scores.friendliness },
-        { onEvent: handleEvent, signal: controller.signal }
-      );
-      // If neither done nor error arrived (e.g. empty stream), reset state.
+      await streamSSE(API_URL, { text, formality: scores.formality, friendliness: scores.friendliness }, { onEvent: handleEvent, signal: controller.signal });
       setStreaming((s) => (s ? false : s));
       setStatus((s) => (s === "Refining…" ? null : s));
     } catch (err) {
       if ((err as Error).name === "AbortError") {
         setStatus("Cancelled.");
       } else {
-        setError("Network error — is the backend running on :8080?");
+        setError("Network error — is the backend running?");
       }
       setStreaming(false);
     }
@@ -82,112 +77,37 @@ export default function RefinePanel() {
   }, []);
 
   return (
-    <div className="container">
-      <h1 className="title">Refine Text</h1>
-      <p className="subtitle">
-        Polish messy messages with adjustable tone. Results stream in real time.
-      </p>
+    <div className="mx-auto max-w-[880px] px-5 py-12 sm:py-16">
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight text-text">
+          Refine Text
+        </h1>
+        <p className="mt-2 text-sm text-muted">
+          Polish messy messages with adjustable tone. Results stream in real time.
+        </p>
+      </header>
 
-      <div className="grid">
-        <div className="panel">
-          <label className="label" htmlFor="input">
-            Your message
-          </label>
-          <textarea
-            id="input"
-            placeholder="e.g. hey can u send me the doc asap thx"
-            value={text}
-            disabled={streaming}
-            onChange={(e) => setText(e.target.value)}
-          />
-
-          <div style={{ marginTop: 16 }}>
-            <div className="slider-row">
-              <span className="label" style={{ margin: 0 }}>
-                Formality
-              </span>
-              <span className="slider-val">{scores.formality}</span>
-            </div>
-            <input
-              type="range"
-              min={1}
-              max={10}
-              value={scores.formality}
-              disabled={streaming}
-              onChange={(e) =>
-                setScores((s) => ({ ...s, formality: Number(e.target.value) }))
-              }
-            />
-
-            <div className="slider-row" style={{ marginTop: 12 }}>
-              <span className="label" style={{ margin: 0 }}>
-                Friendliness
-              </span>
-              <span className="slider-val">{scores.friendliness}</span>
-            </div>
-            <input
-              type="range"
-              min={1}
-              max={10}
-              value={scores.friendliness}
-              disabled={streaming}
-              onChange={(e) =>
-                setScores((s) => ({
-                  ...s,
-                  friendliness: Number(e.target.value),
-                }))
-              }
-            />
-          </div>
-
-          <div className="actions">
-            {!streaming ? (
-              <button
-                className="btn-primary"
-                onClick={onSubmit}
-                disabled={!canSubmit}
-              >
-                Refine
-              </button>
-            ) : (
-              <button className="btn-secondary" onClick={onStop}>
-                Stop
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="panel">
-          <label className="label">Refined output</label>
-          <div className="output">
-            {output ? (
-              <>
-                {output}
-                {streaming && <span className="caret" />}
-              </>
-            ) : (
-              <span className="placeholder">
-                Your polished message will appear here…
-              </span>
-            )}
-          </div>
-
-          <div className="actions">
-            <button
-              className="btn-secondary"
-              onClick={() => copy(output)}
-              disabled={!output || streaming}
-            >
-              {copied ? "Copied!" : "Copy"}
-            </button>
-          </div>
-
-          {status && <div className="banner banner-info">{status}</div>}
-          {error && <div className="banner banner-error">{error}</div>}
-          {output && !streaming && (
-            <div className="meta">{output.length} characters</div>
-          )}
-        </div>
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <InputPanel
+          text={text}
+          onTextChange={setText}
+          formality={scores.formality}
+          onFormalityChange={(v) => setScores((s) => ({ ...s, formality: v }))}
+          friendliness={scores.friendliness}
+          onFriendlinessChange={(v) => setScores((s) => ({ ...s, friendliness: v }))}
+          disabled={streaming}
+          onSubmit={onSubmit}
+          onStop={onStop}
+          streaming={streaming}
+        />
+        <OutputPanel
+          output={output}
+          streaming={streaming}
+          status={status}
+          error={error}
+          copied={copied}
+          onCopy={() => copy(output)}
+        />
       </div>
     </div>
   );
