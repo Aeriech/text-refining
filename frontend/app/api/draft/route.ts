@@ -10,7 +10,8 @@ type SSEEvent =
 
 const FREE_TIER_MODELS = [
   "gemini-2.5-flash",
-  "gemini-2.0-flash-lite",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-pro",
   "gemini-1.5-flash",
   "gemini-1.5-flash-8b",
 ] as const;
@@ -126,9 +127,10 @@ async function* runStreamWithFallback(
 
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY!);
       const generativeModel = genAI.getGenerativeModel({ model });
+      const systemInstructionContent = { role: "user", parts: [{ text: systemInstruction }] };
       session = generativeModel.startChat({
         generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
-        systemInstruction,
+        systemInstruction: systemInstructionContent,
       });
 
       const { stream } = await session.sendMessageStream(promptText);
