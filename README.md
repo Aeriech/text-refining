@@ -1,157 +1,174 @@
 # Refine Text — AI Message Polisher
 
-A full-stack portfolio project that rewrites "messy" user input into polished
-messages using the **Gemini API**, with **real-time streaming** over
+A Next.js application that rewrites "messy" user input into polished messages
+using the **Gemini API**, with **real-time streaming** over
 **Server-Sent Events (SSE)**. Tone is controlled by two sliders:
 
 - **Formality** (1 = casual → 10 = formal)
 - **Friendliness** (1 = direct → 10 = warm)
 
-| Layer    | Stack                                              |
-| -------- | -------------------------------------------------- |
-| Backend  | Go, Chi router, Google GenAI SDK (`genai`)         |
-| Frontend | Next.js 14 (App Router), React, TypeScript         |
-| Stream   | SSE (`text/event-stream`) via `http.Flusher`       |
-| AI       | Gemini Free Tier — `gemini-2.0-flash` (+ fallback) |
+| Layer    | Stack                                                      |
+| -------- | ---------------------------------------------------------- |
+| Fullstack| Next.js 14 App Router, React, TypeScript                   |
+| Backend  | Next.js Route Handlers (`app/api/draft/route.ts`)          |
+| Stream   | SSE (`text/event-stream`) via Web `ReadableStream`         |
+| AI       | Gemini Free Tier — `gemini-2.5-flash` (+ fallback chain)   |
 
 ---
 
 ## Architecture
 
 ```
-┌──────────────┐   POST /draft (JSON)    ┌──────────────────┐
-│  Next.js UI  │ ──────────────────────▶ │  Go (Chi)        │
-│  (React)     │                         │  /draft handler  │
-│              │ ◀────────────────────── │                  │
-│  fetch +     │   SSE: event/chunk      │  Gemini SDK      │
-│  getReader() │   data: {"text":"…"}    │  GenerateContent │
-└──────────────┘                         └──────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│  Vercel (Next.js)                                      │
+│                                                         │
+│  ┌──────────────┐   POST /api/draft (JSON)  ┌────────┐ │
+│  │  React UI    │ ───────────────────────────▶│ Route  │ │
+│  │  (page.tsx)  │                            │Handler │ │
+│  │              │   SSE: event/chunk          │(route.│ │
+│  │  fetch +     │   data: {"text":"…"}        │ ts)   │ │
+│  │  getReader() │   ◀─────────────────────────│       │ │
+│  └──────────────┘                             └───┬───┘ │
+│                                                  │     │
+│                                            Google │ GenAI│
+│                                            SDK   │     │
+└─────────────────────────────────────────────────────────┘
 ```
 
-The backend opens an SSE response, calls Gemini's **streaming** API, and for
+The Route Handler opens an SSE response, calls Gemini's streaming API, and for
 each model chunk writes `event: chunk\ndata: {"text":"…"}\n\n` to the client,
 flushing immediately. The frontend reads the raw `response.body` stream and
-parses the SSE framing itself (the native `EventSource` API only supports GET).
+parses the SSE framing itself.
 
 ### SSE event contract
 
 | event    | data                       | meaning                          |
 | -------- | -------------------------- | -------------------------------- |
 | `chunk`  | `{"text": "…"}`            | one streamed piece of the result |
-| `status` | `{"message": "…"}`         | e.g. "switching to gemini-…" / "via gemini-2.0-flash" |
+| `status` | `{"message": "…"}`         | e.g. "switching to gemini-…" / "via gemini-2.5-flash" |
 | `done`   | `{"ok": true}`             | stream finished successfully     |
 | `error`  | `{"message": "…"}`         | terminal error (incl. 429)       |
 
-Pre-stream validation errors (400) are returned as a plain JSON
-`{"error":"…"}` because SSE headers are not yet committed.
+### Model fallback chain
+
+The backend iterates through a list of free-tier Gemini models. On a 429
+(rate limit / quota) error from one model, it waits briefly and switches to
+the next instead of retrying the same model.
+
+```
+gemini-2.5-flash → gemini-2.0-flash-lite → gemini-1.5-flash → gemini-1.5-flash-8b
+```
+
+Only after exhausting all models does it return a user-facing error.
 
 ---
 
-## Backend (`/backend`)
+## Project structure
 
-Key files:
-
-- `main.go`
-  - `freeTierModels` — ordered fallback chain of free-tier Gemini models
-    (`gemini-2.0-flash`, `gemini-2.0-flash-lite`, `gemini-1.5-flash`,
-    `gemini-1.5-flash-8b`). On a 429 the handler switches to the next model
-    instead of retrying the same one.
-  - `draftHandler` — SSE engine. Validates input, sets SSE headers, asserts
-    `http.Flusher`, streams Gemini chunks, falls back across models on 429,
-    relays clean errors.
-  - `BuildSystemPrompt` — converts the two scores into an explicit,
-    deterministic instruction set with guard-rails (preserve meaning, fix
-    grammar, no invented facts).
-  - CORS via `github.com/go-chi/cors`: always allows `localhost:3000` and
-    appends any origins from `CORS_ORIGINS` (your deployed frontend URL).
-  - `.env` is loaded automatically via `github.com/joho/godotenv` (real env
-    vars / deployment secrets take precedence).
-  - `middleware.Recoverer` + `RequestID` for production hygiene.
-
-### Run
-
-```bash
-cd backend
-cp .env.example .env        # add your GEMINI_API_KEY
-go mod tidy
-go run .                    # listens on :8080 (or $PORT)
+```
+text-refining/
+├── frontend/
+│   ├── app/
+│   │   ├── api/
+│   │   │   └── draft/
+│   │   │       └── route.ts           ← backend logic (SSE + Gemini)
+│   │   ├── layout.tsx
+│   │   ├── globals.css
+│   │   ├── page.tsx
+│   │   └── RefinePanel.tsx
+│   ├── lib/
+│   │   ├── sseClient.ts               ← fetch-streams SSE parser
+│   │   └── useClipboard.ts
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── next.config.mjs
+└── README.md
 ```
 
 ---
 
-## Frontend (`/frontend`)
+## Key files
 
-Key files:
+### `app/api/draft/route.ts`
 
-- `lib/sseClient.ts` — typed, dependency-free SSE client over Fetch Streams
-  (POST + JSON body, which `EventSource` cannot do).
-- `lib/useClipboard.ts` — secure-context clipboard hook with fallback.
-- `app/RefinePanel.tsx` — main component: textarea, two range sliders,
-  streaming output with a blinking caret "typing" effect, loading/disabled
-  states, Stop (abort) button, and Copy-to-Clipboard.
-- `app/globals.css` — dark, responsive two-column layout.
+Replaces the previous Go backend. Implements:
 
-### Run
+- `POST` handler — validates input, returns 400 with `{"error":"…"}` for bad
+  requests, otherwise returns an SSE stream.
+- `runStreamWithFallback` — iterates through the free-tier model chain;
+  retries the next model on 429 with a small backoff; relays clean errors.
+- `BuildSystemPrompt` — converts the two slider scores into a deterministic,
+  explicit instruction set for Gemini.
+
+The handler reads `process.env.GEMINI_API_KEY` directly using Vercel server
+environment variables (no `NEXT_PUBLIC_*` needed since this runs server-side).
+
+### `app/RefinePanel.tsx`
+
+Client component: textarea, two range sliders, streamed output with a blinking
+caret "typing" effect, loading/disabled states, Stop (abort) button, and
+Copy-to-Clipboard.
+
+Post requests go to `/api/draft` (same-origin; no external backend URL
+configured at all).
+
+### `lib/sseClient.ts`
+
+Typed, dependency-free SSE client over Fetch Streams (POST with JSON body).
+Parses the raw `response.body` stream using the standard SSE `event:` / `data:`
+frame separator.
+
+---
+
+## Environment variables
+
+| Variable           | Where set       | Purpose                                  |
+| ------------------ | --------------- | ---------------------------------------- |
+| `GEMINI_API_KEY`   | Vercel dashboard (secret) | Your Gemini API key. Required. Required. |
+
+Set `GEMINI_API_KEY` in the Vercel project settings under **Environment
+Variables** (mark it as a secret). It is read server-side by the Route Handler
+and is never exposed to the browser.
+
+---
+
+## Run locally
 
 ```bash
 cd frontend
-cp .env.example .env        # NEXT_PUBLIC_API_URL (defaults to :8080/draft)
+cp .env.example .env        # add your GEMINI_API_KEY
 npm install
 npm run dev                 # http://localhost:3000
 ```
 
+No separate Go backend is needed — `npm run dev` serves both the page and
+`/api/draft` from the same process.
+
 ---
 
-## Error handling & UX highlights
+## Deploy to Vercel
 
-- **Rate limiting (429) + model fallback:** the backend inspects the SDK error
-  string for `429` / `rate limit` / `quota` / `exhausted`. On a rate limit it
-  advances to the next model in `freeTierModels` (with a short backoff and a
-  `status` event naming the switch) rather than retrying the same model. Only
-  after exhausting the whole chain does it send a friendly `error` event. The
-  frontend surfaces status/errors in banners; a successful stream reports which
-  model answered via a `status: "via <model>"` event.
+1. Push this repo to GitHub.
+2. Go to **vercel.com** → *Add New* → *Project* → import your repo.
+3. Root directory: `frontend`.
+4. In **Environment Variables**, add:
+   - `GEMINI_API_KEY` → your key (mark as secret)
+   - Keep **Production + Preview** checked.
+5. Deploy.
+
+That's it. No `vercel.json`, no `render.yaml`, no separate backend service.
+
+---
+
+## Error handling & UX
+
+- **Rate limiting (429) + model fallback:** on a 429 the backend walks the
+  `FREE_TIER_MODELS` list with a small backoff; each switch is surfaced as a
+  `status` event in the UI. Only after exhausting all models does it send an
+  `error` event.
 - **Loading states:** all inputs, sliders, and the Refine button are disabled
-  (`disabled={streaming}`) while a stream is active; a `Stop` button aborts via
-  `AbortController`.
+  while a stream is active; a `Stop` button aborts via `AbortController`.
 - **Copy to clipboard:** uses `navigator.clipboard` with a `document.execCommand`
   fallback for insecure contexts; shows a transient "Copied!" state.
 - **Typing effect:** chunks are appended to React state as they arrive; a CSS
   caret blinks while `streaming` is true.
-
----
-
-## Deployment
-
-This is a monorepo deployed as two services (full steps in [`DEPLOY.md`](./DEPLOY.md)):
-
-| Service  | Platform | Config file     | Notes                                        |
-| -------- | -------- | --------------- | -------------------------------------------- |
-| Backend  | Render   | `render.yaml`   | Go web service, free tier, `rootDir: backend` |
-| Frontend | Vercel   | `vercel.json`   | Next.js, `rootDirectory: frontend`           |
-
-**Backend (Render):** connect the GitHub repo as a Blueprint; Render builds
-`go build -o refine-text .` and runs `./refine-text`. Set `GEMINI_API_KEY`
-(secret) and `CORS_ORIGINS` (your Vercel URL) in the dashboard. `PORT` is
-provided by Render; `GO_VERSION` is pinned to `1.23`. Health check at `/health`.
-
-**Frontend (Vercel):** import the repo, set root directory `frontend`, and set
-`NEXT_PUBLIC_API_URL` to `https://<your-render-url>/draft`. This variable is
-inlined at build time, so a change requires a redeploy.
-
-Local dev is unchanged: `cp .env.example .env` in each folder, then
-`go run .` (`:8080`) and `npm run dev` (`:3000`).
-
----
-
-## Notes for recruiters
-
-- Backend compiles with `go build` / `go vet` clean; frontend passes
-  `tsc --noEmit` and `next build`.
-- Ships to production via IaC: `render.yaml` (Render) + `vercel.json` (Vercel).
-- No secrets are committed; configuration is environment-driven (`.env` loaded
-  via godotenv locally, dashboard env vars in production).
-- Resilient to free-tier limits: automatic model fallback across a chain of
-  Gemini free-tier models on 429.
-- The SSE framing is standards-compliant (`event:`/`data:` + blank line) and
-  survives proxy buffering (`X-Accel-Buffering: no`).

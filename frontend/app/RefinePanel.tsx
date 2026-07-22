@@ -4,8 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { streamSSE, type SSEEvent } from "@/lib/sseClient";
 import { useClipboard } from "@/lib/useClipboard";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/draft";
+const API_URL = "/api/draft";
 
 interface Scores {
   formality: number;
