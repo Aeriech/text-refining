@@ -14,6 +14,9 @@ https://vercel.com/)
 **Refine Text** turns rough, messy messages into polished prose — in real time. Pick a tone, send your text, and watch the refined version stream word-by-word directly from the model.
 
 ---
+## 🚀 Live Demo
+[🌐 aeriech-refine-text.vercel.app](https://aeriech-refine-text.vercel.app)
+
 
 ## What it does
 
